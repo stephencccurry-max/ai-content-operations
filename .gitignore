@@ -1,23 +1,6 @@
-﻿# Dependencies
-node_modules/
+﻿.env
+data/
 __pycache__/
-*.pyc
-.env
-.env.*
-!.env.example
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build
-dist/
-build/
-*.log
-
+.venv/
+node_modules/
+.next/
