@@ -1,9 +1,35 @@
-﻿.env
+﻿# Environment / secrets
+.env
 .env.*
 !.env.example
 !.env.*.example
+
+# Project data
 data/
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
 .venv/
+
+# Testing / tooling
+/.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# Node / frontend
 node_modules/
 .next/
