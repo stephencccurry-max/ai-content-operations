@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -9,10 +11,12 @@ from app.infrastructure.db.models import Base
 from app.infrastructure.db.session import SessionLocal
 from app.main import create_app
 
+API_ROOT = Path(__file__).resolve().parents[1]
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _schema():
-    config = Config("alembic.ini")
+    config = Config(str(API_ROOT / "alembic.ini"))
     command.upgrade(config, "head")
     yield
 
