@@ -37,6 +37,15 @@ def test_create_task_requires_at_least_one_platform(client):
     assert response.status_code == 422
 
 
+def test_create_task_rejects_duplicate_platforms(client):
+    response = _create(
+        client,
+        {**PAYLOAD, "platforms": ["xiaohongshu", "xiaohongshu"]},
+    )
+
+    assert response.status_code == 422
+
+
 def test_repeated_idempotency_key_returns_same_task(client):
     first = _create(client)
     second = _create(client)
@@ -75,6 +84,15 @@ def test_task_detail_includes_steps_and_slots(client):
     assert body["status"] == "queued"
     assert body["steps"] == []
     assert body["output_slots"] == []
+
+
+def test_task_detail_includes_prohibited_items(client):
+    prohibited = "禁止提及竞品品牌"
+    task_id = _create(client, {**PAYLOAD, "prohibited_items": prohibited}).json()["id"]
+
+    body = client.get(f"/api/v1/tasks/{task_id}").json()
+
+    assert body["prohibited_items"] == prohibited
 
 
 def test_unknown_task_returns_error_envelope(client):

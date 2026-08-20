@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -35,6 +35,50 @@ class TaskCreate(BaseModel):
     tone: str = Field(min_length=1, max_length=200)
     requirements: str | None = Field(default=None, max_length=1000)
     prohibited_items: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("platforms")
+    @classmethod
+    def platforms_must_be_unique(cls, platforms: list[Platform]) -> list[Platform]:
+        if len(platforms) != len(set(platforms)):
+            raise ValueError("platforms must contain unique values")
+        return platforms
+
+
+class TaskStepSummary(BaseModel):
+    step_key: str
+    attempt: int
+    status: str
+    error_code: str | None
+    error_message: str | None
+    started_at: str
+    ended_at: str | None
+
+
+class TaskOutputSlotSummary(BaseModel):
+    id: str
+    platform: str
+    content_type: str
+    current_version_id: str | None
+
+
+class TaskSummary(BaseModel):
+    id: str
+    topic: str
+    platforms: list[str]
+    status: str
+    current_step: str | None
+    created_at: str
+    updated_at: str
+
+
+class TaskDetail(TaskSummary):
+    audience: str
+    goal: str
+    tone: str
+    requirements: str | None
+    prohibited_items: str | None
+    steps: list[TaskStepSummary]
+    output_slots: list[TaskOutputSlotSummary]
 
 
 def ensure_default_project(session: Session) -> Project:
@@ -154,4 +198,69 @@ def list_steps(session: Session, task_id: uuid.UUID) -> list[WorkflowStepRun]:
             .where(WorkflowRun.task_id == task_id)
             .order_by(WorkflowStepRun.started_at)
         ).all()
+    )
+
+
+def _task_summary(session: Session, task: ContentTask) -> TaskSummary:
+    platforms = session.scalars(
+        select(TaskPlatform.platform).where(TaskPlatform.task_id == task.id)
+    ).all()
+    return TaskSummary(
+        id=str(task.id),
+        topic=task.topic,
+        platforms=list(platforms),
+        status=task_status(session, task).value,
+        current_step=task.current_step,
+        created_at=task.created_at.isoformat(),
+        updated_at=task.updated_at.isoformat(),
+    )
+
+
+def task_summary(session: Session, task: ContentTask) -> TaskSummary:
+    return _task_summary(session, task)
+
+
+def list_tasks(session: Session) -> list[TaskSummary]:
+    tasks = session.scalars(
+        select(ContentTask).order_by(ContentTask.updated_at.desc())
+    ).all()
+    return [_task_summary(session, task) for task in tasks]
+
+
+def get_task_detail(session: Session, task_id: uuid.UUID) -> TaskDetail:
+    task = get_task_or_404(session, task_id)
+    summary = _task_summary(session, task)
+    slots = session.scalars(
+        select(ContentOutputSlot).where(ContentOutputSlot.task_id == task.id)
+    ).all()
+    return TaskDetail(
+        **summary.model_dump(),
+        audience=task.audience,
+        goal=task.goal,
+        tone=task.tone,
+        requirements=task.requirements,
+        prohibited_items=task.prohibited_items,
+        steps=[
+            TaskStepSummary(
+                step_key=step.step_key,
+                attempt=step.attempt,
+                status=step.status,
+                error_code=step.error_code,
+                error_message=step.error_message,
+                started_at=step.started_at.isoformat(),
+                ended_at=step.ended_at.isoformat() if step.ended_at else None,
+            )
+            for step in list_steps(session, task.id)
+        ],
+        output_slots=[
+            TaskOutputSlotSummary(
+                id=str(slot.id),
+                platform=slot.platform,
+                content_type=slot.content_type,
+                current_version_id=str(slot.current_version_id)
+                if slot.current_version_id
+                else None,
+            )
+            for slot in slots
+        ],
     )
