@@ -17,5 +17,31 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    build: ../apps/api
+    environment:
+      DATABASE_URL: postgresql+psycopg://app:app@db:5432/ai_content_ops
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      EXPORT_DIR: /data/exports
+    volumes:
+      - ../data:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  n8n:
+    image: n8nio/n8n
+    environment:
+      N8N_SECURE_COOKIE: "false"
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8ndata:/home/node/.n8n
+
 volumes:
   pgdata:
+  n8ndata:

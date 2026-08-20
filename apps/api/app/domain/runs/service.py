@@ -68,6 +68,10 @@ def start_step(
     )
     session.add(step)
     session.flush()
+    run = session.get(WorkflowRun, run_id)
+    task = session.get(ContentTask, run.task_id)
+    task.current_step = step_key
+    session.flush()
     return step
 
 
