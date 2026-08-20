@@ -170,74 +170,6 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [960, 520]
-    },
-    {
-      "parameters": {},
-      "id": "c9d0e1f2-a3b4-5678-2345-789012345678",
-      "name": "On Workflow Error",
-      "type": "n8n-nodes-base.errorTrigger",
-      "typeVersion": 1,
-      "position": [0, 720]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.INTERNAL_API_BASE_URL }}/internal/v1/runs/{{ $('Claim Run').item.json.id }}/steps/generate_{{ $('Loop Platforms').item.json.platform }}/fail",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_API_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ attempt: $('Start Step').isExecuted ? $('Start Step').item.json.attempt : 1, error_code: 'N8N_STEP_FAILED', error_message: $json.execution?.error?.message ?? 'Workflow step failed', retryable: true }) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "d0e1f2a3-b4c5-6789-3456-890123456789",
-      "name": "Fail Step",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [240, 720]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.INTERNAL_API_BASE_URL }}/internal/v1/runs/{{ $('Claim Run').item.json.id }}/finish",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_API_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"status\":\"failed\"}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "e1f2a3b4-c5d6-7890-4567-901234567890",
-      "name": "Finish Run Failed",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [480, 720]
     }
   ],
   "connections": {
@@ -319,28 +251,6 @@
         [
           {
             "node": "Loop Platforms",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "On Workflow Error": {
-      "main": [
-        [
-          {
-            "node": "Fail Step",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Fail Step": {
-      "main": [
-        [
-          {
-            "node": "Finish Run Failed",
             "type": "main",
             "index": 0
           }

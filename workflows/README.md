@@ -62,9 +62,14 @@ curl.exe http://127.0.0.1:8000/api/v1/tasks/<task_id>
 | 6 | Generate Content | `POST .../tasks/{task_id}/generate/{platform}` |
 | 7 | Complete Step | `POST .../complete`，body 带 start 返回的 `attempt` |
 | 8 | Finish Run | 全部平台完成后 `POST .../finish`（`succeeded`） |
-| — | On Workflow Error → Fail Step → Finish Run Failed | 任一步失败时标记 step/run 为 `failed` |
 
 节点间仅传递 ID（`task_id`、`run_id`、`platform`、`attempt`），不传正文内容。
+
+### 错误处理（M1）
+
+M1 主路径为 happy path；未接入 Error Trigger 分支。n8n 的 Error Trigger 在独立执行上下文中运行，无法可靠引用 Claim Run / Start Step 等主路径节点数据，原先 Fail Step 链已移除。
+
+后续可在 HTTP 节点启用 **Continue On Fail**，在主路径上根据 `$json.error` 调用 `/fail` 与 `/finish`（`failed`）；当前失败时工作流会中止，run 状态需通过 API 或运维手段清理。
 
 ### 契约测试
 
