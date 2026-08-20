@@ -1,4 +1,5 @@
 {
+  "id": "e7f1a2b3-c4d5-4678-89ab-cdef01234567",
   "name": "WF-01 Content Pipeline",
   "nodes": [
     {
@@ -135,7 +136,7 @@
           ]
         },
         "options": {
-          "timeout": 30000
+          "timeout": 120000
         }
       },
       "id": "f6a7b8c9-d0e1-2345-f012-456789012345",

@@ -44,6 +44,37 @@ def test_full_pipeline_sequence_reaches_awaiting_review(client):
     assert len(detail["output_slots"]) == 1
 
 
+def test_dual_platform_pipeline_reaches_awaiting_review(client):
+    payload = {**PAYLOAD, "platforms": ["xiaohongshu", "douyin"]}
+    task_id = client.post(
+        "/api/v1/tasks", json=payload, headers={"Idempotency-Key": "k-dual-pipe"}
+    ).json()["id"]
+    run_id = client.post(
+        f"/internal/v1/tasks/{task_id}/runs", json={}, headers=HEADERS
+    ).json()["id"]
+    for platform in ("xiaohongshu", "douyin"):
+        step = client.post(
+            f"/internal/v1/runs/{run_id}/steps/generate_{platform}/start", headers=HEADERS
+        ).json()
+        gen = client.post(
+            f"/internal/v1/tasks/{task_id}/generate/{platform}", headers=HEADERS
+        )
+        assert gen.status_code == 201
+        client.post(
+            f"/internal/v1/runs/{run_id}/steps/generate_{platform}/complete",
+            json={"attempt": step["attempt"]},
+            headers=HEADERS,
+        )
+    client.post(
+        f"/internal/v1/runs/{run_id}/finish",
+        json={"status": "succeeded"},
+        headers=HEADERS,
+    )
+    detail = client.get(f"/api/v1/tasks/{task_id}").json()
+    assert detail["status"] == "awaiting_review"
+    assert len(detail["output_slots"]) == 2
+
+
 def test_duplicate_complete_callback_is_idempotent(client):
     task_id = client.post(
         "/api/v1/tasks", json=PAYLOAD, headers={"Idempotency-Key": "k2"}
