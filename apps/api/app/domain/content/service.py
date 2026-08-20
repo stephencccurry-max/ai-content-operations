@@ -14,6 +14,7 @@ from app.infrastructure.db.models import (
     TaskPlatform,
 )
 from app.infrastructure.providers.llm import PROMPT_VERSION, get_llm_provider
+from app.infrastructure.providers.search import SearchHit
 
 
 def _get_or_create_slot(
@@ -69,12 +70,16 @@ def generate_output(
     slot = _get_or_create_slot(session, task_id, platform)
     provider = get_llm_provider()
 
+    # Task 3 minimum: empty sources; Task 4 adds research cache / search-once.
+    sources: list[SearchHit] = []
+
     started = time.perf_counter()
     if platform is Platform.XIAOHONGSHU:
-        payload = provider.generate_note(task.topic, task.audience, task.tone)
+        result = provider.generate_note(task.topic, task.audience, task.tone, sources)
     else:
-        payload = provider.generate_script(task.topic, task.audience, task.tone)
+        result = provider.generate_script(task.topic, task.audience, task.tone, sources)
     latency_ms = int((time.perf_counter() - started) * 1000)
+    payload = result.payload
 
     call = ProviderCall(
         task_id=task_id,
@@ -83,6 +88,8 @@ def generate_output(
         prompt_version=PROMPT_VERSION,
         latency_ms=latency_ms,
         status="succeeded",
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
     )
     session.add(call)
     session.flush()
