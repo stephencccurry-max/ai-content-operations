@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import content, health, internal, reviews, tasks
+from app.api import content, exports, health, internal, reviews, tasks
 from app.errors import register_error_handlers
 from app.middleware import RequestIdMiddleware
 
@@ -13,6 +13,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router, prefix="/api/v1")
     app.include_router(content.router, prefix="/api/v1")
     app.include_router(reviews.router, prefix="/api/v1")
+    app.include_router(exports.router, prefix="/api/v1")
     app.include_router(internal.router, prefix="/internal/v1")
     return app
 
