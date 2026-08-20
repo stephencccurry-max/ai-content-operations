@@ -38,6 +38,8 @@ def _truncate(db_session):
 
 @pytest.fixture()
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+    monkeypatch.setenv("SEARCH_PROVIDER", "mock")
     monkeypatch.setenv("INTERNAL_API_TOKEN", "test-internal-token")
     get_settings.cache_clear()
     yield TestClient(create_app(), raise_server_exceptions=False)
