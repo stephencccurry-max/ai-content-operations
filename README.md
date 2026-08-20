@@ -24,13 +24,38 @@ copy .env.example .env
 
 编辑 `.env`，至少设置 `POSTGRES_PASSWORD` 与 `INTERNAL_API_TOKEN`（两处 token 需一致）。
 
+**默认 Mock（与 pytest 一致）：** 仓库内 `.env.example` 使用 `LLM_PROVIDER=mock`、`SEARCH_PROVIDER=mock`，不调用外网；`cd apps\api` 下 pytest 的 `conftest.py` 也会强制 mock，与本机 `.env` 里的 live 配置无关。
+
+**可选 — M2 真实出稿（Tavily + 智谱）：** 在本机 `.env`（及 Compose 用的 `infra/.env` 副本）中设置：
+
+```env
+LLM_PROVIDER=zhipu
+SEARCH_PROVIDER=tavily
+TAVILY_API_KEY=<your-tavily-key>
+ZHIPU_API_KEY=<your-zhipu-key>
+ZHIPU_BASE_URL=https://open.bigmodel.cn/api/coding/paas/v4
+ZHIPU_MODEL=glm-5.3
+```
+
+- 调研走 Tavily（每任务只 search 一次，结果缓存在 `research_sources`）。
+- LLM 走智谱 OpenAI 兼容 `chat/completions`；`estimated_cost` 恒为 0，有 usage 则记 token。
+- **Coding Plan 端点**（`/api/coding/paas/v4`）按用户要求接入；官方条款限制其供白名单编程工具使用。若标准 API 有余额，可改 `ZHIPU_BASE_URL=https://open.bigmodel.cn/api/paas/v4`。
+- **无预算熔断**（M2 不做日限额/人民币计价）；额度用尽时由供应商报错（如智谱 1113），步骤记 `failed`。
+- 本机 PostgreSQL 已占 **5432** 时，使用 gitignore 的 `infra/docker-compose.override.yml` 把宿主机端口改为 **5433**，启动时加 `-f infra/docker-compose.override.yml`。
+
 ### 2. 启动基础设施与 API
 
 ```powershell
 docker compose -f infra/docker-compose.yml down -v
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml up -d --build
 docker compose -f infra/docker-compose.yml exec api alembic upgrade head
 curl.exe http://127.0.0.1:8000/api/v1/health
+```
+
+若使用端口 override（见上文）：
+
+```powershell
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.override.yml up -d --build
 ```
 
 预期 health 响应：
@@ -46,6 +71,8 @@ curl.exe http://127.0.0.1:8000/api/v1/health
 1. 打开 `http://127.0.0.1:5678`
 2. **Workflows → Import from File** → 选择 `workflows/wf01-content-pipeline.json`
 3. 打开工作流并 **Activate**，记下 Webhook 路径 `/webhook/wf01`
+
+M2 已将 **Generate Content** 节点超时改为 **120s**（真实 LLM 较慢）。若你曾导入旧版 WF-01，需**重新导入并激活**后再测 webhook。
 
 详见 [`workflows/README.md`](workflows/README.md)。
 
@@ -69,6 +96,8 @@ curl.exe -X POST http://127.0.0.1:5678/webhook/wf01 `
 ## 测试
 
 ### API 单元 / 集成测试
+
+测试**不访问外网**：`conftest.py` 强制 `LLM_PROVIDER=mock`、`SEARCH_PROVIDER=mock`，即使用户本机 `.env` 已配 Tavily/智谱 live 值。
 
 ```powershell
 cd apps\api

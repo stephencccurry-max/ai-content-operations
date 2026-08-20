@@ -4,6 +4,9 @@
 !.env.example
 !.env.*.example
 
+# Local compose port overrides (host Postgres may already bind 5432)
+infra/docker-compose.override.yml
+
 # Project data
 data/
 

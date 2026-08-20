@@ -1,6 +1,6 @@
 # n8n 工作流
 
-M1 编排工作流导出文件，供导入本地 n8n 实例。
+M1/M2 编排工作流导出文件，供导入本地 n8n 实例。
 
 ## WF-01 Content Pipeline
 
@@ -14,6 +14,7 @@ M1 编排工作流导出文件，供导入本地 n8n 实例。
 |------|------|
 | `INTERNAL_API_BASE_URL` | FastAPI 内部 API 根地址（不含路径后缀） |
 | `INTERNAL_API_TOKEN` | 与 API 侧 `INTERNAL_API_TOKEN` 一致，用于 `X-Internal-Token` 头 |
+| `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` | n8n 2.x 默认禁止表达式读取 `$env`；WF-01 需要关闭该限制 |
 
 **取值示例：**
 
@@ -60,7 +61,7 @@ curl.exe http://127.0.0.1:8000/api/v1/tasks/<task_id>
 | 4 | Loop Platforms | Split In Batches 逐平台处理 |
 | 5 | Start Step | `POST .../steps/generate_{platform}/start`（Continue On Fail） |
 | 6 | IF Start Failed? | 检查 `$json.error`；失败则跳至 Finish Run Failed |
-| 7 | Generate Content | `POST .../tasks/{task_id}/generate/{platform}`（Continue On Fail） |
+| 7 | Generate Content | `POST .../tasks/{task_id}/generate/{platform}`（Continue On Fail）；**HTTP 超时 120s**（M2） |
 | 8 | IF Generate Failed? | 失败则 Fail Step → Finish Run Failed |
 | 9 | Complete Step | `POST .../complete`，body 带 start 返回的 `attempt`（Continue On Fail） |
 | 10 | IF Complete Failed? | 失败则 Fail Step；成功则回到 Loop Platforms |
@@ -80,6 +81,17 @@ M1 **不使用 Error Trigger**：Error Trigger 在独立 execution 中运行，�
 - **Generate / Complete 失败**：`POST .../steps/generate_{platform}/fail`（带 Start Step 返回的 `attempt`）→ `POST .../finish`（`failed`）→ Stop。
 
 Happy path 不变：start → generate → complete → loop → finish succeeded。
+
+### M2：Generate 超时与真实 LLM
+
+M2 起，**Generate Content** 节点的 HTTP Request `options.timeout` 为 **120000 ms（120 秒）**；Claim Run / Start Step / Complete Step 仍为 30s。
+
+原因：Mock 出稿几乎瞬时完成，而 `LLM_PROVIDER=zhipu` + `SEARCH_PROVIDER=tavily` 时单次 generate 含 Tavily 调研（首平台）与智谱 JSON 出稿，常需数十秒。超时过短会导致 n8n 误判失败，而 API 侧可能仍在处理。
+
+**操作注意：**
+
+- 更新 `wf01-content-pipeline.json` 后须**重新 Import 并 Activate** WF-01，否则 n8n 仍用旧超时。
+- live 验收建议双平台任务（小红书 + 抖音），确认两份稿与 `claim_source_map` 非空；额度/Key 错误时步骤应 `failed`（如 `PROVIDER_AUTH_FAILED` / `PROVIDER_QUOTA_EXCEEDED`）。
 
 ### 契约测试
 

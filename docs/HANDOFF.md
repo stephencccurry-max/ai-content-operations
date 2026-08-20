@@ -1,14 +1,22 @@
 # 交接文档：AI 内容运营控制台
 
-> 最后更新：2026-08-19
-> 面向对象：接手本项目执行阶段的新 agent 会话
-> 当前阶段：设计已定稿，M1 实施计划已就绪，尚未写任何产品代码
+> 最后更新：2026-08-21  
+> 面向对象：接手本项目的新 agent 会话  
+> 当前阶段：**M1 冷启动验收已通过**；**M2 代码已在 `feat/m2-real-providers` 完成（Task 1–6）**，待本机 Tavily + 智谱 live 验收
 
 ## 1. 三十秒了解现状
 
-个人本地运行的 AI 内容运营控制台。设计文档已经过一轮完整的产品与架构评审并定稿，M1 里程碑的实施计划已按 TDD 拆成 12 个任务，代码一行还没写。
+个人本地运行的 AI 内容运营控制台。设计文档已定稿；M1 的 12 个任务已按 `superpowers:subagent-driven-development` 全部实现、评审、修复，并推送到 `origin/main`（HEAD：`465c383`）。
 
-你接手后要做的事：用 superpowers 的 subagent-driven-development 执行 `docs/superpowers/plans/2026-08-19-m1-walking-skeleton.md`，每个任务派一个实现子代理，任务之间做评审，主 agent 只做协调与评审，不亲自写实现代码。
+**已有能力（M1）：** 浏览器创建任务 →（n8n WF-01 或内部 HTTP）→ Mock 出稿 → 人工批准 → 导出 Markdown；FastAPI + PostgreSQL + Next.js + Compose 骨架齐全。API 测试当前 **75 passed**。
+
+**还不是完整 V1：** M3（规则+模型 QC）、M4（稳定性与试运行）未开始；M2 live 验收尚未在本机跑通。
+
+你接手后优先做：
+
+1. ~~本机 Docker 冷启动 + live n8n webhook 验收（M1 Mock）~~ **已通过（2026-08-20）**。
+2. ~~按 `docs/superpowers/plans/2026-08-20-m2-real-providers.md` 用 subagent-driven-development 实现 M2~~ **代码已完成（2026-08-21，`feat/m2-real-providers`）**。
+3. **M2 live 验收**（人工，见计划 Task 6 与 `README.md`）：`.env` 设 `LLM_PROVIDER=zhipu`、`SEARCH_PROVIDER=tavily`、Tavily/智谱 Key → Compose 启动 → 重新导入 WF-01 → 双平台 webhook → 确认两份稿与 `claim_source_map`。
 
 ## 2. 项目是什么
 
@@ -26,123 +34,204 @@
 |---|---|---|
 | `AI内容运营控制台—项目总体方案.md`（V1.1） | 立项背景、范围边界、架构决策、路线图、风险 | 范围与架构决策以它为准 |
 | `AI内容运营控制台—V1产品与实施设计.md`（V1.1） | 页面、状态机、数据模型、API、Schema、测试、验收 | **所有量化指标和技术细节以它为准** |
-| `docs/superpowers/plans/2026-08-19-m1-walking-skeleton.md` | M1 的任务级实施计划，含完整代码与测试 | 执行细节以它为准；与设计文档冲突时先问人 |
+| `docs/superpowers/plans/2026-08-19-m1-walking-skeleton.md` | M1 任务级实施计划 | M1 历史执行细节以它为准；与设计冲突时先问人 |
+| `docs/superpowers/plans/2026-08-20-m2-real-providers.md` | M2 任务级实施计划 | M2 执行以它为准；预算熔断不在本里程碑 |
+| `README.md` / `AGENTS.md` | 冷启动与代理约定 | 日常启动与协作以它们为准 |
+| `.superpowers/sdd/progress.md` | M1 任务完成台账（本地，通常不提交） | 恢复进度时优先于记忆 |
+| `.superpowers/sdd-workspace/task-*-report.md` | 各任务实现/评审报告（本地） | 追溯某任务决策时查阅 |
 
-两份文档已经互相对齐过：总体方案不再复述任何量化数字，统一引用 V1 设计文档 §18；里程碑编号两边都用 M1–M4，不再有「Sprint」「阶段」两套叫法。
+两份设计文档已互相对齐：总体方案不复述量化数字，统一引用 V1 设计文档 §18；里程碑编号用 M1–M4。
 
-评审过程的完整记录（33 条发现，含每条的位置、问题、建议、是否已拍板）在 canvas 文件里，它不在仓库内，路径是 `C:\Users\86138\.cursor\projects\c-Users-86138-cursor-projects-ai-content-operations\canvases\v1-design-review.canvas.tsx`。需要追溯某个设计为什么这么定时可以查它。
+设计评审记录（canvas，不在仓库）：  
+`C:\Users\86138\.cursor\projects\c-Users-86138-cursor-projects-ai-content-operations\canvases\v1-design-review.canvas.tsx`
 
 ## 4. 已经拍板、不要推翻的决策
 
 这四条是用户明确确认过的，带理由。除非用户主动改口，**不要在执行中重新讨论**。
 
-**保留 n8n 做编排。** 单看本项目的编排复杂度，用 FastAPI 内的任务队列更简单，能省掉一个容器、一套内部 API 鉴权和双状态源的对账开销。用户仍然选择保留，理由是把本项目当作 n8n 能力的试验场，后续其他项目和本项目的新功能模块会复用这套编排经验。代价（双状态源、WF-04 对账、内部密钥）已被明确接受。如果你在实现中觉得 n8n 多余，那是预料之中的，不是发现了新问题。
+**保留 n8n 做编排。** 单看本项目的编排复杂度，用 FastAPI 内的任务队列更简单，能省掉一个容器、一套内部 API 鉴权和双状态源的对账开销。用户仍然选择保留，理由是把本项目当作 n8n 能力的试验场。代价（双状态源、WF-04 对账、内部密钥）已被明确接受。
 
-**调研只用自带正文的搜索 API，不自建网页抓取。** 反爬、JS 渲染、正文降噪的成本远超收益。候选是 Tavily / Exa / Bocha 一类。正文文本来自 API 而非本地抓取，这一点影响版权与留存策略的表述。
+**调研只用自带正文的搜索 API，不自建网页抓取。** 候选是 Tavily / Exa / Bocha 一类。
 
-**人工编辑产生的新版本，保存时同步跑确定性规则 QC，模型 QC 手动触发。** 审核门禁是「无规则级阻断，且（无模型级阻断 或 审核人勾选了我已人工核对）」，人工确认写入审计事件。这条解决了原设计里「人工版本要么永远批不了、要么绕过门禁」的死锁。
+**人工编辑产生的新版本，保存时同步跑确定性规则 QC，模型 QC 手动触发。** 审核门禁是「无规则级阻断，且（无模型级阻断 或 审核人勾选了我已人工核对）」。M1 尚未实现完整 QC（属 M3）；M1 只实现了批准门禁中与 Mock 相关的部分。
 
-**小红书与抖音的真实发布 Adapter 整体推到 V1.1。** 小红书图文必须带图而 V1 没有图片能力；抖音不做视频合成因而没有视频资产。两者在 V1 都没有可发布的载荷。V1 的发布能力只有 `manual_export` 导出，加上用 Fake Publisher 验证 Adapter 契约的四态（scheduled / succeeded / failed / unknown）。
+**小红书与抖音的真实发布 Adapter 整体推到 V1.1。** V1 发布能力只有 `manual_export` 导出；Fake Publisher 契约在 M4。
 
-另外用户强调过一条总原则：**V1 要快速出一个能跑起来的 demo，不追求完美**。先跑通再优化。遇到「要不要顺手做得更完善」的选择时，选跑通。
+总原则：**快速出一个能跑起来的 demo，不追求完美。** 先跑通再优化。
 
 ## 5. 全局约束（每个子代理都要带上）
 
 - 个人 Windows 本地应用，不引入多租户、Kubernetes 或微服务。
 - FastAPI 是业务状态和状态迁移的唯一入口；n8n 不直接读写核心业务表。
-- 所有外部 Provider 必须经过 Adapter，设置超时、有限重试并记录调用；M1 只有 Mock Adapter。
+- 所有外部 Provider 必须经过 Adapter；**M1 Mock 已实现**；**M2 已接 Tavily + 智谱 Zhipu Adapter**（Settings 切换 mock/live）。
 - 内容产物采用不可变版本；只有明确批准的版本可导出。`approved` 一旦写入不再变更。
 - 公开 API 前缀 `/api/v1`，编排接口前缀 `/internal/v1`，JSON 字段一律 `snake_case`。
 - 时间列用 `TIMESTAMPTZ`，主键用 UUID，API 时间用 UTC ISO 8601。
 - 容器内监听 `0.0.0.0`，访问限制靠 Compose 端口映射写成 `127.0.0.1:<port>:<port>`。
 - 密钥只走 `.env`，不提交 Git；日志不输出完整密钥、Cookie、Authorization 头。
-- M1 不调用任何外部 API，测试不依赖网络。
-- TDD 强制：先写失败测试，确认它以预期原因失败，再写最小实现。先写实现的代码删除重来。
-- 依赖版本由包管理器在安装时锁定，不要凭记忆写死版本号，锁文件必须提交。
+- **`Settings.internal_api_token` 无硬编码默认值**，必须从环境读取；测试用 `INTERNAL_API_TOKEN=test-internal-token`（与 conftest / 多数测试 HEADERS 一致）。
+- M1 不调用任何外部 API；测试不依赖网络。
+- TDD 强制：先写失败测试再写最小实现。
+- 依赖版本由包管理器锁定；锁文件必须提交。
 
 ## 6. 里程碑划分
 
-| 里程碑 | 交付物 |
-|---|---|
-| **M1 走通闭环（全 Mock）** | 不依赖任何外部 API、可本地演示的端到端 demo：建任务 → n8n 编排 → Mock 出稿 → 批准 → 导出 Markdown |
-| **M2 真实内容生产** | 接搜索 API 与 LLM，双平台产物、成本记录与预算熔断 |
-| **M3 质检与人工审核** | 规则 QC + 模型 QC + 一次修订 + 审核门禁与队列 |
-| **M4 稳定性与试运行** | 错误分类、对账、备份、E2E、Prompt 黄金样本回归、Fake Publisher 契约、20 选题试运行 |
-| **V1.1** | 图片能力、真实发布 Adapter、发布后数据反馈 |
+| 里程碑 | 交付物 | 状态 |
+|---|---|---|
+| **M1 走通闭环（全 Mock）** | 建任务 → n8n/内部编排 → Mock 出稿 → 批准 → 导出 Markdown | **开发完成且本机 live 验收通过** |
+| **M2 真实内容生产** | Tavily 调研 + 智谱 GLM-5.3 出稿、双平台、token 记录；**预算熔断/人民币计价明确不做** | **代码完成（`feat/m2-real-providers`），待 live 验收** |
+| **M3 质检与人工审核** | 规则 QC + 模型 QC + 一次修订 + 审核门禁与队列 | 未开始 |
+| **M4 稳定性与试运行** | 错误分类、对账、备份、E2E、Prompt 回归、Fake Publisher、20 选题试运行 | 未开始 |
+| **V1.1** | 图片能力、真实发布 Adapter、发布后数据反馈 | 未开始 |
 
-每个里程碑开工前，先在 `docs/superpowers/plans/` 产出该里程碑的实施计划，再动代码。M2 的计划等 M1 验收通过后再写。
+每个里程碑开工前，先在 `docs/superpowers/plans/` 产出该里程碑的实施计划，再动代码。
 
-## 7. 当前仓库状态
+## 7. 当前仓库状态（2026-08-21）
 
 ```text
 ai-content-operations/
-├─ AI内容运营控制台—项目总体方案.md          # V1.1，未提交
-├─ AI内容运营控制台—V1产品与实施设计.md      # V1.1，未提交
-├─ README.md                                 # 初始占位内容，M1 Task 12 会重写
+├─ AI内容运营控制台—项目总体方案.md
+├─ AI内容运营控制台—V1产品与实施设计.md
+├─ README.md / AGENTS.md / .env.example / .gitignore
+├─ apps/
+│  ├─ api/          # FastAPI、Alembic、pytest、Dockerfile
+│  └─ web/          # Next.js App Router、TanStack Query、Playwright e2e
+├─ infra/docker-compose.yml   # db + api + n8n
+├─ workflows/                 # wf01-content-pipeline.json + README
 └─ docs/
-   ├─ HANDOFF.md                             # 本文件
+   ├─ HANDOFF.md              # 本文件
    └─ superpowers/plans/
-      └─ 2026-08-19-m1-walking-skeleton.md   # M1 实施计划
+      ├─ 2026-08-19-m1-walking-skeleton.md
+      └─ 2026-08-20-m2-real-providers.md
 ```
 
-- git 只有一个初始提交 `05d3d18`，两份设计文档和 `docs/` 都还是未跟踪状态。
-- 没有任何产品代码，没有 `apps/`、`infra/`、`workflows/`、`.env.example`。
-- 开始执行前先把设计文档和计划提交掉，这样后续每个任务的 diff 才干净。
+- **远程：** `https://github.com/stephencccurry-max/ai-content-operations.git`
+- **分支：** `main`（`465c383`，M1）；**`feat/m2-real-providers`**（M2 实现，7 个 feat/fix commit + Task 6 文档，**未 push**）
+- **本机 git 身份（仅仓库级）：** `stephencccurry-max` / `stephencccurry-max@users.noreply.github.com`（全局曾缺失 `user.name`/`user.email`，导致提交失败；已用本地 config 解决）
+- **未纳入 Git 的本地内容：** `.superpowers/`（SDD briefs/reports/progress）、以及可能未提交的本文件修改——接手后可继续用台账，不必强行提交 secrets/工作区垃圾
 
-## 8. 执行方式：subagent-driven-development
+### 关键路径速查
 
-读 `superpowers:subagent-driven-development` 技能后按它执行。要点：
+| 能力 | 位置 |
+|---|---|
+| 应用工厂 / CORS | `apps/api/app/main.py`（允许 `localhost:3000` / `127.0.0.1:3000`） |
+| 配置 | `apps/api/app/config.py`（`internal_api_token` 必填） |
+| 模型与迁移 | `apps/api/app/infrastructure/db/`、`apps/api/alembic/versions/0001_baseline.py` |
+| 幂等 | `apps/api/app/application/idempotency.py` |
+| 任务状态派生 | `apps/api/app/domain/tasks/status.py`（**批准前必须 settled 平台数 ≥ expected**） |
+| 任务 / 编排 / 内容 / 审核 / 导出 API | `apps/api/app/api/*.py` + `domain/*` |
+| Mock / Tavily / Zhipu LLM | `apps/api/app/infrastructure/providers/search.py`、`zhipu.py`、`llm.py` |
+| Provider HTTP + 调用记录 | `apps/api/app/infrastructure/providers/http.py`；`provider_calls`；`estimated_cost=0` |
+| 调研缓存 | `content_tasks.research_sources`（`0002_research_sources` 迁移） |
+| WF-01 | `workflows/wf01-content-pipeline.json`（主路径 continueOnFail 失败收敛；不用跨执行 Error Trigger） |
+| Web | `apps/web/` → `/tasks`、`/tasks/new`、`/tasks/[taskId]` |
+| E2E | `apps/web/e2e/smoke.spec.ts`（无 n8n 时可回退 `/internal/v1`） |
 
-**开始之前**
+## 8. 本会话已完成工作摘要（2026-08-19 → 2026-08-20）
 
-1. 确认工作区隔离方式（`superpowers:using-git-worktrees`），不要直接在 main 上开工而不征得用户同意。
-2. 做一次 pre-flight plan review：通读计划找自相矛盾之处，有发现就一次性批量问用户，没有就直接开始，不要边做边打断。
-3. 检查本机环境是否具备：Docker Desktop 可用、`uv` 已安装、Node 20 可用。缺什么先让用户装，不要在任务中途才发现。
-4. 建进度台账 `.superpowers/sdd/progress.md`。上下文被压缩后，台账和 `git log` 比你的记忆可靠。
+### 流程
 
-**每个任务的循环**
+1. 同步设计文档与 HANDOFF/计划到 GitHub（中途补仓库级 git 身份）。
+2. 按 `subagent-driven-development` 执行 M1：每任务「实现子代理 → 评审 → 修复 → 复评 → 台账」。
+3. 全程在 **`main`** 上提交（未开 feature branch；用户事后选择直接 push）。
+4. 环境注意：PowerShell；无系统 `bash`（task-brief 脚本改用 Python 截取）；`uv`/`docker` 曾不在 PATH——实现侧用 venv pytest、本机 PostgreSQL 或跳过 live Compose。
 
-派实现子代理（只给它这一个任务的 brief，不要让它读整个计划文件，也不要把前面任务的历史粘给它）→ 它按 TDD 实现、跑测试、提交、自查 → 生成 review package → 派任务评审子代理（同时给出规格符合性和代码质量两个结论）→ 有 Critical/Important 就派修复子代理并重新评审 → 通过后记台账，进入下一个任务。
+### M1 Task 1–12 结论
 
-**模型选择**：计划里已经把完整代码写出来的任务，实现子代理用最便宜的一档就够（本质是誊写加测试）；涉及多文件协调的用标准档；最后一轮整分支评审用最强的一档。每次派发都显式指定模型，不指定会继承主会话的模型，通常是最贵的那个。
+| Task | 内容 | 结果 |
+|---|---|---|
+| 1 | FastAPI 骨架、错误信封、request_id、health | 完成；强制 env token；gitignore 加固 |
+| 2 | 11 表 + Alembic + Compose db | 完成；凭据走 `.env`；conftest 用绝对 alembic 路径 |
+| 3 | 幂等键 | 完成 |
+| 4 | `derive_task_status` 真值表 | 完成 |
+| 5 | 任务 CRUD API | 完成；补 TaskSummary/Detail、重复 platform→422、`prohibited_items` |
+| 6 | `/internal/v1` runs/steps | 完成；FOR UPDATE；404；finish 仅终态；测试 token=`test-internal-token` |
+| 7 | Mock 生成 + 槽位/版本 | 完成；版本分配加锁 |
+| 8 | 审核门禁 | 完成；**保留计划码 `BLOCKING_ISSUES_PRESENT`**；不可变检查优先于 version conflict；空白 comment 无效 |
+| 9 | Markdown 导出 | 完成；路径穿越防护 |
+| 10 | WF-01 + Compose api/n8n + Dockerfile | 完成；循环接线；Dockerfile 分层+启动迁移；主路径失败收敛 |
+| 11 | Next.js 控制台 | 完成；补 FastAPI CORS |
+| 12 | Playwright + README + AGENTS | 完成；**DONE_WITH_CONCERNS**：Docker/live n8n 未 live 验；E2E 可走内部 HTTP |
 
-**不要做的事**：不要跳过任务评审；不要并行派多个实现子代理（会冲突）；不要在评审有未修复的 Critical/Important 时进入下一个任务；不要在评审提示词里预判findings的严重程度或告诉评审者「不要报这个」；不要重新派发台账里已标记完成的任务。
+### 整分支最终评审修复
 
-## 9. M1 的 12 个任务
+- `465c383`：`derive_task_status` 在 `expected_platform_count` 未满足前不得返回 `approved`（单平台已批准、双平台任务 → `partially_ready`）。
+- README 补充 E2E 与 `INTERNAL_API_TOKEN` 对齐说明。
 
-计划里每个任务都有完整的文件清单、接口契约、可直接粘的代码和测试。顺序是有意安排的：前 9 个任务纯后端、能完全靠 pytest 验证，第 10 个才接 n8n，第 11 个才有界面。
+### 推送
 
-1. 应用骨架与统一错误信封
-2. 数据库模型与基线迁移（11 张表）
-3. 幂等键
-4. 派生任务状态（纯函数 + 真值表）
-5. 任务创建、列表与详情
-6. 编排内部接口与步骤 attempt 分配
-7. Mock Provider 与内容生成
-8. 审核与批准门禁
-9. Markdown 导出
-10. n8n WF-01 编排接线
-11. Next.js 控制台
-12. 端到端冒烟与冷启动验收
+- 用户选择「推送到 GitHub」：`origin/main` 已包含至 `465c383`（M1）；M2 仍在 feature 分支。
 
-M1 的验收标准写在计划末尾，八条全满足才算完成。
+### M2 Task 1–6 结论（`feat/m2-real-providers`）
 
-## 10. 尚未解决、需要用户决定的事
+| Task | 内容 | 结果 |
+|---|---|---|
+| 1 | Settings、httpx、`request_json`、conftest 强制 mock | 完成 |
+| 2 | Tavily Search Adapter + mock | 完成 |
+| 3 | Zhipu GLM-5.3 Adapter + JSON payload | 完成 |
+| 4 | 调研缓存、`provider_calls` 失败记录 | 完成 |
+| 5 | 双平台契约、WF-01 Generate 120s、Compose 透传 provider env | 完成；**87 passed** |
+| 6 | README / workflows README / HANDOFF / `.env.example` live 说明 | 完成（本任务） |
 
-**M2 开工前必须先定**（M1 里刻意没有预设，现在假设了后面大概率返工）：
+**M2 明确不做：** 预算熔断、人民币单价、Playwright 打真实 Provider、真实发布 Adapter。
 
-- 选定具体的搜索 API 供应商，确认它返回正文的字段结构与配额。
-- 确定 LLM Provider 与具体模型。
-- 给出模型定价表，成本估算和预算熔断依赖它。
+## 9. 执行方式（后续里程碑仍适用）
 
-**两处可以再确认的设计判断**（当前选择是合理的，写在这里是为了不被悄悄改掉）：
+继续用 `superpowers:subagent-driven-development`：
 
-- `changes_requested` 被定义为「不是版本状态，而是最近一次审核决策为 `request_changes` 时的派生表现」，版本状态仍是 `awaiting_review`。这样避免同一件事既写状态又写决策。如果要改成真正的版本状态，V1 设计文档 §6.3 和 M1 计划 Task 8 都要回改。
-- V1 设计文档 §4.7 设置页的「发布适配器」仍保留了展示外部 Adapter 健康状态的描述，而 V1 已经没有外部 Adapter，这块界面在 V1 期间会是空的。不算错误，V1.1 会用上，所以没删。
+- 主 agent 协调与评审，**不亲自写实现**（除非用户改口）。
+- 每任务：brief 文件 → 实现子代理 → 评审 → Critical/Important 修复循环 → 更新 `.superpowers/sdd/progress.md`。
+- 不要并行多个实现子代理；不要跳过评审；不要重新派发台账已完成任务。
+- 计划示例代码与评审 finding 冲突时：**摆出双方说法问用户**（例：Task 8 错误码以计划 `BLOCKING_ISSUES_PRESENT` 为准；多平台 approved 语义最终按产品正确性修了计划示例顺序）。
 
-## 11. 与用户协作的注意事项
+Windows 实操提示：
+
+- 测试：`cd apps\api`；`$env:INTERNAL_API_TOKEN='test-internal-token'`；`.venv\Scripts\pytest.exe tests -v`（或 `uv run pytest`）。
+- 无 bash 时可用 Python 从计划文件截取 `## Task N:` 区块写 brief。
+
+## 10. M1 验收清单（2026-08-20 本机 live 已通过）
+
+- [x] Compose 启动后 `GET http://127.0.0.1:8000/api/v1/health` → `database=ok`
+- [x] 导入并激活 `workflows/wf01-content-pipeline.json`，Webhook 触发生成成功（任务 `awaiting_review`）
+- [x] Playwright：`/tasks/new` → 详情轮询 → 批准 → 导出路径可见（`1 passed`）
+- [x] `cd apps\api` 下 pytest：**75 passed**（M1 时点；M2 分支当前 **87 passed**）
+- [x] `cd apps\web` 下 `npm run build` 通过
+
+**本机注意（不要当通用默认）：**
+
+- Docker Desktop 安装在 `D:\Install\DockerDesktop\Application`；CLI 为 `...\resources\bin\docker.exe`，默认不在 PATH。
+- 本机已有 PostgreSQL 占 5432 且无管理员权限停不掉；验收用 `infra/docker-compose.override.yml` 把宿主机端口改成 **5433**（已 gitignore）。
+- Compose 的 `--env-file` 默认看 `infra/`；根目录 `.env` 需复制为 `infra/.env`，或在 `infra/` 下执行 compose。
+- n8n **2.35.5** 默认禁止表达式读 `$env`；已在 compose 设 `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`。CLI 导入需要工作流 JSON 顶层 `id`；导入后 `publish:workflow` 并重启 n8n。
+- `ghcr.io/astral-sh/uv` 本机不可达；API Dockerfile 改为 `pip install uv`。
+
+## 11. 尚未解决、需要用户决定的事
+
+**M2 决策（2026-08-20，实现已落地）：**
+
+- 搜索：**Tavily**（`SEARCH_PROVIDER=tavily`）。
+- LLM：智谱 **`glm-5.3`**，Base URL **`https://open.bigmodel.cn/api/coding/paas/v4`**（Coding Plan 端点；切标准 API 改 `ZHIPU_BASE_URL=https://open.bigmodel.cn/api/paas/v4`）。
+- **不做预算熔断、不算人民币成本**（推迟至 M3+ 若用户再定）；额度不足由供应商报错（智谱 1113 / 1004 等）。
+- 实施计划：`docs/superpowers/plans/2026-08-20-m2-real-providers.md`
+
+**设计判断（保持，勿悄悄改）：**
+
+- `changes_requested` 是派生表现，版本状态仍可是 `awaiting_review`。
+- V1 设置页「发布适配器」在 V1 期间可为空，V1.1 再用。
+
+## 12. 与用户协作的注意事项
 
 - 用简体中文回复。
-- 用户的 shell 是 PowerShell，命令里不能用 `&&`，用 `;` 或分多次执行。
-- 用户希望快速看到能跑的东西。汇报时先说结果，再说细节。
-- 遇到计划与评审结论冲突、或子代理报出与计划矛盾的 finding，这是用户的决定，把双方说法摆出来问他，不要自行裁决。
+- PowerShell：不用 `&&`，用 `;` 或分次执行。
+- 汇报先说结果，再说细节。
+- 用户希望快速看到能跑的东西；完整 V1 = M1–M4，不要把「M1 做完」说成「整个 V1 做完」除非用户只问 demo。
+- 需要同步云端时：先确认身份与 `git status`，再 push；用户明确选推送方式后再执行。
+
+## 13. 建议的下一会话开场动作
+
+```text
+1. 读本 HANDOFF + README + docs/superpowers/plans/2026-08-20-m2-real-providers.md
+2. 检出 feat/m2-real-providers；本机 .env 设 LLM_PROVIDER=zhipu、SEARCH_PROVIDER=tavily、TAVILY_API_KEY、ZHIPU_*
+3. docker compose -f infra/docker-compose.yml [-f override] up -d --build；重新导入/激活 WF-01
+4. 双平台 webhook live 验收；通过后合并分支 / 开 PR（用户确认后再 push）
+```
