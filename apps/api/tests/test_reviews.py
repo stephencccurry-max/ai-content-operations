@@ -54,10 +54,55 @@ def test_approved_version_cannot_be_reviewed_again(client, version):
     assert second.json()["error"]["code"] == "VERSION_IMMUTABLE"
 
 
+def test_approved_version_with_stale_number_returns_immutable(client, version):
+    client.post(
+        f"/api/v1/output-versions/{version['id']}/review",
+        json={"version": 1, "decision": "approve"},
+    )
+    response = client.post(
+        f"/api/v1/output-versions/{version['id']}/review",
+        json={"version": 99, "decision": "reject", "comment": "反悔"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "VERSION_IMMUTABLE"
+
+
 def test_reject_requires_comment(client, version):
     response = client.post(
         f"/api/v1/output-versions/{version['id']}/review",
         json={"version": 1, "decision": "reject"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "REVIEW_COMMENT_REQUIRED"
+
+
+@pytest.mark.parametrize("comment", ["", "   ", "\t\n"])
+def test_reject_whitespace_only_comment_treated_as_missing(client, version, comment):
+    response = client.post(
+        f"/api/v1/output-versions/{version['id']}/review",
+        json={"version": 1, "decision": "reject", "comment": comment},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "REVIEW_COMMENT_REQUIRED"
+
+
+@pytest.mark.parametrize("comment", ["", "   ", "\t\n"])
+def test_request_changes_whitespace_only_comment_treated_as_missing(
+    client, comment
+):
+    task_id = client.post(
+        "/api/v1/tasks", json=PAYLOAD, headers={"Idempotency-Key": f"k-ws-{comment!r}"}
+    ).json()["id"]
+    version = client.post(
+        f"/internal/v1/tasks/{task_id}/generate/xiaohongshu", headers=HEADERS
+    ).json()
+
+    response = client.post(
+        f"/api/v1/output-versions/{version['id']}/review",
+        json={"version": 1, "decision": "request_changes", "comment": comment},
     )
 
     assert response.status_code == 422

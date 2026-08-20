@@ -31,16 +31,18 @@ def review_version(
         raise AppError("VERSION_NOT_FOUND", "内容版本不存在", status_code=404)
     if decision not in DECISION_TO_STATUS:
         raise AppError("UNKNOWN_DECISION", "不支持的审核动作", status_code=422)
+    if version.status == VersionStatus.APPROVED.value:
+        raise AppError(
+            "VERSION_IMMUTABLE", "已批准的版本不可再次评审", status_code=409
+        )
     if version.version != expected_version:
         raise AppError(
             "VERSION_CONFLICT",
             "页面上的版本已过期，请刷新后重新审核",
             status_code=409,
         )
-    if version.status == VersionStatus.APPROVED.value:
-        raise AppError(
-            "VERSION_IMMUTABLE", "已批准的版本不可再次评审", status_code=409
-        )
+    if decision in {"reject", "request_changes"}:
+        comment = comment.strip() if comment else None
     if decision in {"reject", "request_changes"} and not comment:
         raise AppError(
             "REVIEW_COMMENT_REQUIRED", "驳回或请求修改必须填写原因", status_code=422
