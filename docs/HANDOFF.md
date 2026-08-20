@@ -1,22 +1,79 @@
 # 交接文档：AI 内容运营控制台
 
-> 最后更新：2026-08-21  
+> 最后更新：2026-08-21（收工交接）  
 > 面向对象：接手本项目的新 agent 会话  
-> 当前阶段：**M1 冷启动验收已通过**；**M2 代码已在 `feat/m2-real-providers` 完成（Task 1–6）**，待本机 Tavily + 智谱 live 验收
+> 当前阶段：**M1 live 已通过**；**M2 代码已合入 `main`**；下一步只做 **M2 本机 live 验收**，不要重做 M2 实现，不要开工 M3
+
+## 0. 今日工作总结（2026-08-21，给明天新 agent）
+
+**一句话：** M1 冷启动验收昨天已过；今天把 M2（Tavily + 智谱 GLM-5.3）按计划 Task 1–6 做完、评审修复、fast-forward 合入本地 `main`，pytest **88 passed**。完整 V1 仍差 M3/M4；M2 **还没**在本机用真实 Key 跑通 webhook。
+
+**仓库（合入后）：**
+
+- 分支：`main`（M2 已不再需要检出 `feat/m2-real-providers`）
+- 合入方式：本地 `git checkout main` 后 fast-forward，`465c383` → `98bb746`（再加本 HANDOFF 提交）
+- 远程：`https://github.com/stephencccurry-max/ai-content-operations.git`
+- 本会话会 `git push origin main`。接手后先 `git pull` / `git status`，确认与 `origin/main` 一致再干活
+- **不要提交：** `.env`、`infra/.env`、`infra/docker-compose.override.yml`、`.superpowers/`
+
+**M2 合入的关键提交（从旧到新）：**
+
+| SHA | 内容 |
+|---|---|
+| `27d6a64` | Settings + `request_json` + conftest 强制 mock |
+| `06d1709` | Tavily adapter |
+| `56d4478` | Zhipu GLM-5.3 JSON adapter |
+| `c989d58` + `eda5de7` | 调研缓存、失败记 `provider_calls`、避免空 slot |
+| `28d3e5a` + `16db7af` | 双平台契约、n8n Generate **120s**、Compose 透传 env、`PROVIDER_TIMEOUT_SECONDS:-45` |
+| `8c15450` | README / `.env.example` / 计划入仓 |
+| `98bb746` | 非法 JSON 包成 `PROVIDER_INVALID_RESPONSE` |
+
+**用户已拍板（不要重开讨论）：**
+
+1. 搜索：**Tavily**
+2. LLM：智谱 **`glm-5.3`**，Base URL 用 **`https://open.bigmodel.cn/api/coding/paas/v4`**（Coding Plan）。标准 `paas/v4` 对该账号会 **1113 余额不足**。官方条款限制给白名单编程工具；用户知情后仍要求用。
+3. **不做预算熔断、不算人民币**；`provider_calls.estimated_cost` 恒 **0**；额度不够由供应商报错。
+
+**本机环境（冷启动踩过的坑，继续沿用）：**
+
+- Docker Desktop：`D:\Install\DockerDesktop\Application`；CLI 在 `...\resources\bin\docker.exe`，**默认不在 PATH**
+- 本机 PostgreSQL 占 **5432** 且无管理员权限停不掉 → 本地 `infra/docker-compose.override.yml`（**gitignore**）把宿主机端口改成 **5433**
+- Compose 插值默认看 `infra/`：根目录 `.env` 需复制为 **`infra/.env`**
+- n8n **2.35.5**：compose 已设 `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`；CLI 导入需工作流 JSON **顶层 `id`**；`publish:workflow` 后要重启 n8n
+- `ghcr.io/astral-sh/uv` 不可达 → Dockerfile 用 `pip install uv`
+- 测试库与宿主机 API 抢同一 Postgres 会死锁：Compose DB 用 `:5433`，或停掉占用 8000 的 uvicorn
+- PowerShell **不能用 `&&`**，用 `;`
+
+**智谱 Key（不要把 Key 写进 Git/HANDOFF 正文）：** 已写入本机 `.env` 和 `infra/.env`（`ZHIPU_API_KEY`、`ZHIPU_BASE_URL`、`ZHIPU_MODEL=glm-5.3`）。Adapter 必须发 **`thinking: {type: disabled}`**，并给够 `max_tokens`。错误映射：`1113` → `PROVIDER_QUOTA_EXCEEDED`；`1004`/401 → `PROVIDER_AUTH_FAILED`。
+
+**Tavily Key：用户还没给。** live 需要同时有 `LLM_PROVIDER=zhipu`、`SEARCH_PROVIDER=tavily`、`TAVILY_API_KEY`。
+
+**已知残留（不挡合并，live 时注意）：** `uv.lock` 曾手工改 httpx 为主依赖；HTTP 429 可能在映射 1113 前重试一次；n8n 120s 盖不住 search+LLM 各超时+重试的最坏路径。
+
+**明天优先做：**
+
+1. `git pull` 确认 `main` 最新；读本文件 + `README.md` + `docs/superpowers/plans/2026-08-20-m2-real-providers.md`
+2. 向用户要 Tavily Key（若仍没有），写入根目录 `.env` **和** `infra/.env`
+3. Compose `up -d --build`（5432 冲突继续用 override **5433**）→ **重新导入/激活 WF-01**
+4. 双平台 webhook live：两份稿 + `claim_source_map`；额度/错 Key 应看到 `PROVIDER_*` 失败记录
+5. **不要开工 M3**，除非用户要求先写 `docs/superpowers/plans/` 里的 M3 计划
+6. 继续 SDD：主 agent 不亲自写实现（除非用户改口）；用简体中文
 
 ## 1. 三十秒了解现状
 
-个人本地运行的 AI 内容运营控制台。设计文档已定稿；M1 的 12 个任务已按 `superpowers:subagent-driven-development` 全部实现、评审、修复，并推送到 `origin/main`（HEAD：`465c383`）。
+个人本地运行的 AI 内容运营控制台。设计文档已定稿；M1 的 12 个任务已实现并 live 验收；M2 代码已合入 `main`。
 
-**已有能力（M1）：** 浏览器创建任务 →（n8n WF-01 或内部 HTTP）→ Mock 出稿 → 人工批准 → 导出 Markdown；FastAPI + PostgreSQL + Next.js + Compose 骨架齐全。M1 API 测试 **75 passed**；`feat/m2-real-providers` 当前 **88 passed**。
+**已有能力（M1）：** 浏览器创建任务 →（n8n WF-01 或内部 HTTP）→ Mock 出稿 → 人工批准 → 导出 Markdown。
 
-**还不是完整 V1：** M3（规则+模型 QC）、M4（稳定性与试运行）未开始；M2 live 验收尚未在本机跑通。
+**已有能力（M2，代码层）：** Settings 切换 mock/live；Tavily 调研（每 task 缓存到 `content_tasks.research_sources`）；智谱 GLM-5.3 JSON 出稿；双平台契约；`provider_calls` 记成功/失败（`estimated_cost=0`）。合入后 API 测试 **88 passed**。
+
+**还不是完整 V1：** M3（规则+模型 QC）、M4（稳定性与试运行）未开始；M2 **live 验收尚未跑通**。
 
 你接手后优先做：
 
 1. ~~本机 Docker 冷启动 + live n8n webhook 验收（M1 Mock）~~ **已通过（2026-08-20）**。
-2. ~~按 `docs/superpowers/plans/2026-08-20-m2-real-providers.md` 用 subagent-driven-development 实现 M2~~ **代码已完成（2026-08-21，`feat/m2-real-providers`）**。
-3. **M2 live 验收**（人工，见计划 Task 6 与 `README.md`）：`.env` 设 `LLM_PROVIDER=zhipu`、`SEARCH_PROVIDER=tavily`、Tavily/智谱 Key → Compose 启动 → 重新导入 WF-01 → 双平台 webhook → 确认两份稿与 `claim_source_map`。
+2. ~~按计划实现 M2~~ **代码已合入 `main`（2026-08-21）**。
+3. **M2 live 验收**（人工，见上文 §0 与 `README.md`）。
 
 ## 2. 项目是什么
 
@@ -79,7 +136,7 @@
 | 里程碑 | 交付物 | 状态 |
 |---|---|---|
 | **M1 走通闭环（全 Mock）** | 建任务 → n8n/内部编排 → Mock 出稿 → 批准 → 导出 Markdown | **开发完成且本机 live 验收通过** |
-| **M2 真实内容生产** | Tavily 调研 + 智谱 GLM-5.3 出稿、双平台、token 记录；**预算熔断/人民币计价明确不做** | **代码完成（`feat/m2-real-providers`），待 live 验收** |
+| **M2 真实内容生产** | Tavily 调研 + 智谱 GLM-5.3 出稿、双平台、token 记录；**预算熔断/人民币计价明确不做** | **代码已合入 `main`，待本机 live 验收** |
 | **M3 质检与人工审核** | 规则 QC + 模型 QC + 一次修订 + 审核门禁与队列 | 未开始 |
 | **M4 稳定性与试运行** | 错误分类、对账、备份、E2E、Prompt 回归、Fake Publisher、20 选题试运行 | 未开始 |
 | **V1.1** | 图片能力、真实发布 Adapter、发布后数据反馈 | 未开始 |
@@ -106,9 +163,9 @@ ai-content-operations/
 ```
 
 - **远程：** `https://github.com/stephencccurry-max/ai-content-operations.git`
-- **分支：** `main`（`465c383`，M1）；**`feat/m2-real-providers`**（M2 实现，7 个 feat/fix commit + Task 6 文档，**未 push**）
+- **分支：** 工作在 **`main`**。M2 已从 `feat/m2-real-providers` fast-forward 合入（代码 HEAD 基线 `98bb746`）。本地 feature 分支可删，不要再基于它开发。
 - **本机 git 身份（仅仓库级）：** `stephencccurry-max` / `stephencccurry-max@users.noreply.github.com`（全局曾缺失 `user.name`/`user.email`，导致提交失败；已用本地 config 解决）
-- **未纳入 Git 的本地内容：** `.superpowers/`（SDD briefs/reports/progress）、以及可能未提交的本文件修改——接手后可继续用台账，不必强行提交 secrets/工作区垃圾
+- **未纳入 Git 的本地内容：** `.superpowers/`（SDD briefs/reports/progress，通常不提交）、`.env` / `infra/.env`、`infra/docker-compose.override.yml`。接手后可继续用本地台账，**禁止提交密钥**
 
 ### 关键路径速查
 
@@ -160,9 +217,10 @@ ai-content-operations/
 
 ### 推送
 
-- 用户选择「推送到 GitHub」：`origin/main` 已包含至 `465c383`（M1）；M2 仍在 feature 分支。
+- 2026-08-20：`origin/main` 曾停在 `465c383`（M1）。
+- 2026-08-21：M2 合入本地 `main` 后 push `origin/main`（见 §0）。接手先核对远程是否已包含 HANDOFF 本次更新。
 
-### M2 Task 1–6 结论（`feat/m2-real-providers`）
+### M2 Task 1–6 结论（已合入 `main`）
 
 | Task | 内容 | 结果 |
 |---|---|---|
@@ -170,8 +228,9 @@ ai-content-operations/
 | 2 | Tavily Search Adapter + mock | 完成 |
 | 3 | Zhipu GLM-5.3 Adapter + JSON payload | 完成 |
 | 4 | 调研缓存、`provider_calls` 失败记录 | 完成 |
-| 5 | 双平台契约、WF-01 Generate 120s、Compose 透传 provider env | 完成；**87 passed** |
-| 6 | README / workflows README / HANDOFF / `.env.example` live 说明 | 完成（本任务） |
+| 5 | 双平台契约、WF-01 Generate 120s、Compose 透传 provider env | 完成 |
+| 6 | README / workflows README / HANDOFF / `.env.example` live 说明 | 完成 |
+| 终审 | 非法 JSON → `PROVIDER_INVALID_RESPONSE`（`98bb746`） | **88 passed** |
 
 **M2 明确不做：** 预算熔断、人民币单价、Playwright 打真实 Provider、真实发布 Adapter。
 
@@ -194,7 +253,7 @@ Windows 实操提示：
 - [x] Compose 启动后 `GET http://127.0.0.1:8000/api/v1/health` → `database=ok`
 - [x] 导入并激活 `workflows/wf01-content-pipeline.json`，Webhook 触发生成成功（任务 `awaiting_review`）
 - [x] Playwright：`/tasks/new` → 详情轮询 → 批准 → 导出路径可见（`1 passed`）
-- [x] `cd apps\api` 下 pytest：**75 passed**（M1 时点；M2 分支当前 **87 passed**）
+- [x] `cd apps\api` 下 pytest：M1 时点 **75 passed**；M2 合入后 **88 passed**（2026-08-21 合入验证）
 - [x] `cd apps\web` 下 `npm run build` 通过
 
 **本机注意（不要当通用默认）：**
@@ -230,8 +289,11 @@ Windows 实操提示：
 ## 13. 建议的下一会话开场动作
 
 ```text
-1. 读本 HANDOFF + README + docs/superpowers/plans/2026-08-20-m2-real-providers.md
-2. 检出 feat/m2-real-providers；本机 .env 设 LLM_PROVIDER=zhipu、SEARCH_PROVIDER=tavily、TAVILY_API_KEY、ZHIPU_*
-3. docker compose -f infra/docker-compose.yml [-f override] up -d --build；重新导入/激活 WF-01
-4. 双平台 webhook live 验收；通过后合并分支 / 开 PR（用户确认后再 push）
+1. 读本 HANDOFF §0 + README + docs/superpowers/plans/2026-08-20-m2-real-providers.md
+2. git checkout main；git pull；确认 HEAD 含 M2（98bb746 及之后的 HANDOFF 提交）
+3. 确认根目录 .env 与 infra/.env 都有 LLM_PROVIDER=zhipu、SEARCH_PROVIDER=tavily、TAVILY_API_KEY、ZHIPU_*
+   （Tavily Key 若仍缺失，先向用户要，不要编造）
+4. docker compose -f infra/docker-compose.yml [-f override] up -d --build（5432 冲突用 5433）
+5. 重新导入/激活 WF-01；双平台 webhook live；确认两份稿与 claim_source_map
+6. 不要开工 M3，除非用户明确要求先写 M3 计划
 ```
