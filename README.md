@@ -85,12 +85,13 @@ npm run build
 
 ### E2E 冒烟（Playwright）
 
-需 API（`:8000`）与 Web（`:3000`）已运行；n8n 可选（未运行时测试会回退到内部 HTTP 编排序列）。
+需 API（`:8000`）与 Web（`:3000`）已运行；n8n 可选（未运行时测试会回退到内部 HTTP 编排序列）。E2E 通过 `X-Internal-Token` 调用内部 API：未设置 `INTERNAL_API_TOKEN` 时默认使用 `change-me-in-local-env`（与 `.env.example` 一致），API 侧须使用相同 token。
 
 ```powershell
 cd apps\web
 npm install
 npx playwright install chromium
+$env:INTERNAL_API_TOKEN='change-me-in-local-env'  # 可选；省略则 E2E 使用同默认值
 npx playwright test
 ```
 

@@ -36,8 +36,8 @@ def derive_task_status(
     if has_change_requests:
         return TaskStatus.CHANGES_REQUESTED
     live = [s for s in settled if s is not VersionStatus.REJECTED]
-    if all(s is VersionStatus.APPROVED for s in live):
-        return TaskStatus.APPROVED
     if len(settled) < expected_platform_count:
         return TaskStatus.PARTIALLY_READY
+    if all(s is VersionStatus.APPROVED for s in live):
+        return TaskStatus.APPROVED
     return TaskStatus.AWAITING_REVIEW

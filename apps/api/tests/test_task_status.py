@@ -84,6 +84,17 @@ def test_change_requests_take_precedence_over_awaiting_review():
     )
 
 
+def test_single_approved_version_below_expected_count_is_partially_ready():
+    assert (
+        derive_task_status(
+            run_status=RunStatus.SUCCEEDED,
+            version_statuses=[A],
+            expected_platform_count=2,
+        )
+        == TaskStatus.PARTIALLY_READY
+    )
+
+
 def test_change_requests_do_not_override_cancellation():
     assert (
         derive_task_status(
