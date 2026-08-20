@@ -41,3 +41,19 @@ def test_does_not_retry_auth_error():
 
     assert exc.value.code == "PROVIDER_HTTP_ERROR"
     assert mock_client.request.call_count == 1
+
+
+def test_invalid_json_body_raises_provider_invalid_response():
+    bad = httpx.Response(200, content=b"not-json")
+    mock_client = MagicMock()
+    mock_client.request.return_value = bad
+    mock_client.__enter__.return_value = mock_client
+    mock_client.__exit__.return_value = False
+
+    with patch("app.infrastructure.providers.http.httpx.Client", return_value=mock_client):
+        with pytest.raises(AppError) as exc:
+            request_json("POST", "https://example.invalid/v1", headers={}, json={}, timeout=1.0)
+
+    assert exc.value.code == "PROVIDER_INVALID_RESPONSE"
+    assert exc.value.retryable is False
+    assert mock_client.request.call_count == 1

@@ -1,3 +1,4 @@
+from json import JSONDecodeError
 from typing import Any
 
 import httpx
@@ -42,7 +43,15 @@ def request_json(
                     )
                     continue
                 _raise_http(response)
-            data = response.json()
+            try:
+                data = response.json()
+            except JSONDecodeError:
+                raise AppError(
+                    "PROVIDER_INVALID_RESPONSE",
+                    "外部服务返回了非对象 JSON",
+                    status_code=502,
+                    retryable=False,
+                )
             if not isinstance(data, dict):
                 raise AppError(
                     "PROVIDER_INVALID_RESPONSE",

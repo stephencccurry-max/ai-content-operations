@@ -8,7 +8,7 @@
 
 个人本地运行的 AI 内容运营控制台。设计文档已定稿；M1 的 12 个任务已按 `superpowers:subagent-driven-development` 全部实现、评审、修复，并推送到 `origin/main`（HEAD：`465c383`）。
 
-**已有能力（M1）：** 浏览器创建任务 →（n8n WF-01 或内部 HTTP）→ Mock 出稿 → 人工批准 → 导出 Markdown；FastAPI + PostgreSQL + Next.js + Compose 骨架齐全。API 测试当前 **75 passed**。
+**已有能力（M1）：** 浏览器创建任务 →（n8n WF-01 或内部 HTTP）→ Mock 出稿 → 人工批准 → 导出 Markdown；FastAPI + PostgreSQL + Next.js + Compose 骨架齐全。M1 API 测试 **75 passed**；`feat/m2-real-providers` 当前 **88 passed**。
 
 **还不是完整 V1：** M3（规则+模型 QC）、M4（稳定性与试运行）未开始；M2 live 验收尚未在本机跑通。
 
