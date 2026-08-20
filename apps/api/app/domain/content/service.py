@@ -29,11 +29,13 @@ def _get_or_create_slot(
             "PLATFORM_NOT_IN_TASK", "该任务未选择这个平台", status_code=400
         )
     slot = session.scalar(
-        select(ContentOutputSlot).where(
+        select(ContentOutputSlot)
+        .where(
             ContentOutputSlot.task_id == task_id,
             ContentOutputSlot.platform == platform.value,
             ContentOutputSlot.content_type == task_platform.content_type,
         )
+        .with_for_update()
     )
     if slot is None:
         slot = ContentOutputSlot(
@@ -58,7 +60,9 @@ def _next_version(session: Session, slot_id: uuid.UUID) -> int:
 def generate_output(
     session: Session, task_id: uuid.UUID, platform: Platform
 ) -> ContentOutputVersion:
-    task = session.get(ContentTask, task_id)
+    task = session.scalar(
+        select(ContentTask).where(ContentTask.id == task_id).with_for_update()
+    )
     if task is None:
         raise AppError("TASK_NOT_FOUND", "任务不存在", status_code=404)
 
@@ -103,7 +107,11 @@ def generate_output(
 def create_manual_version(
     session: Session, slot_id: uuid.UUID, payload: dict
 ) -> ContentOutputVersion:
-    slot = session.get(ContentOutputSlot, slot_id)
+    slot = session.scalar(
+        select(ContentOutputSlot)
+        .where(ContentOutputSlot.id == slot_id)
+        .with_for_update()
+    )
     if slot is None:
         raise AppError("SLOT_NOT_FOUND", "内容位不存在", status_code=404)
 
