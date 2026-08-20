@@ -19,8 +19,10 @@ services:
 
   api:
     build: ../apps/api
+    env_file:
+      - ../.env
     environment:
-      DATABASE_URL: postgresql+psycopg://app:app@db:5432/ai_content_ops
+      DATABASE_URL: ${DATABASE_URL}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
       EXPORT_DIR: /data/exports
     volumes:
