@@ -55,9 +55,29 @@ def test_generation_records_provider_call(client, task_id, db_session):
     client.post(f"/internal/v1/tasks/{task_id}/generate/xiaohongshu", headers=HEADERS)
     calls = db_session.scalars(select(ProviderCall)).all()
 
-    assert len(calls) == 1
-    assert calls[0].provider == "mock"
-    assert calls[0].status == "succeeded"
+    providers = {c.provider for c in calls}
+    assert "mock" in providers
+    assert "mock-search" in providers
+    assert all(c.status == "succeeded" for c in calls)
+
+
+def test_two_platforms_search_once(client, db_session):
+    from sqlalchemy import select
+
+    from app.infrastructure.db.models import ProviderCall
+
+    payload = {
+        **PAYLOAD,
+        "platforms": ["xiaohongshu", "douyin"],
+    }
+    task_id = client.post(
+        "/api/v1/tasks", json=payload, headers={"Idempotency-Key": "k-dual"}
+    ).json()["id"]
+    client.post(f"/internal/v1/tasks/{task_id}/generate/xiaohongshu", headers=HEADERS)
+    client.post(f"/internal/v1/tasks/{task_id}/generate/douyin", headers=HEADERS)
+    providers = [c.provider for c in db_session.scalars(select(ProviderCall)).all()]
+    assert providers.count("mock-search") == 1
+    assert providers.count("mock") == 2
 
 
 def test_version_records_model_and_prompt_version(client, task_id):

@@ -52,6 +52,9 @@ class ContentTask(Base):
     needs_attention: Mapped[bool] = mapped_column(Boolean(), default=False)
     cancelled: Mapped[bool] = mapped_column(Boolean(), default=False)
     archived: Mapped[bool] = mapped_column(Boolean(), default=False)
+    research_sources: Mapped[dict | list | None] = mapped_column(
+        JSONB(), nullable=True
+    )
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

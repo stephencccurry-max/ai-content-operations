@@ -13,8 +13,13 @@ from app.infrastructure.db.models import (
     ProviderCall,
     TaskPlatform,
 )
-from app.infrastructure.providers.llm import PROMPT_VERSION, get_llm_provider
-from app.infrastructure.providers.search import SearchHit
+from app.infrastructure.providers.llm import (
+    NOTE_PROMPT_VERSION,
+    PROMPT_VERSION,
+    SCRIPT_PROMPT_VERSION,
+    get_llm_provider,
+)
+from app.infrastructure.providers.search import SearchHit, get_search_provider
 
 
 def _get_or_create_slot(
@@ -58,6 +63,37 @@ def _next_version(session: Session, slot_id: uuid.UUID) -> int:
     return (current or 0) + 1
 
 
+def _prompt_version(provider_name: str, platform: Platform) -> str:
+    if platform is Platform.XIAOHONGSHU:
+        return NOTE_PROMPT_VERSION if provider_name == "zhipu" else PROMPT_VERSION
+    return SCRIPT_PROMPT_VERSION
+
+
+def _ensure_research_sources(session: Session, task: ContentTask) -> None:
+    if task.research_sources:
+        return
+    search = get_search_provider()
+    started = time.perf_counter()
+    hits = search.search(task.topic)
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    task.research_sources = [
+        {"title": hit.title, "url": hit.url, "content": hit.content} for hit in hits
+    ]
+    session.add(
+        ProviderCall(
+            task_id=task.id,
+            provider=search.name,
+            model=search.name,
+            latency_ms=latency_ms,
+            status="succeeded",
+            input_tokens=0,
+            output_tokens=0,
+            estimated_cost=0,
+        )
+    )
+    session.flush()
+
+
 def generate_output(
     session: Session, task_id: uuid.UUID, platform: Platform
 ) -> ContentOutputVersion:
@@ -68,16 +104,40 @@ def generate_output(
         raise AppError("TASK_NOT_FOUND", "任务不存在", status_code=404)
 
     slot = _get_or_create_slot(session, task_id, platform)
+    _ensure_research_sources(session, task)
+    sources = [SearchHit(**row) for row in task.research_sources]
     provider = get_llm_provider()
-
-    # Task 3 minimum: empty sources; Task 4 adds research cache / search-once.
-    sources: list[SearchHit] = []
+    prompt_version = _prompt_version(provider.name, platform)
 
     started = time.perf_counter()
-    if platform is Platform.XIAOHONGSHU:
-        result = provider.generate_note(task.topic, task.audience, task.tone, sources)
-    else:
-        result = provider.generate_script(task.topic, task.audience, task.tone, sources)
+    try:
+        if platform is Platform.XIAOHONGSHU:
+            result = provider.generate_note(
+                task.topic, task.audience, task.tone, sources
+            )
+        else:
+            result = provider.generate_script(
+                task.topic, task.audience, task.tone, sources
+            )
+    except AppError as exc:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        session.add(
+            ProviderCall(
+                task_id=task_id,
+                provider=provider.name,
+                model=provider.model,
+                prompt_version=prompt_version,
+                latency_ms=latency_ms,
+                status="failed",
+                error_code=exc.code,
+                input_tokens=0,
+                output_tokens=0,
+                estimated_cost=0,
+            )
+        )
+        session.commit()
+        raise
+
     latency_ms = int((time.perf_counter() - started) * 1000)
     payload = result.payload
 
@@ -85,11 +145,12 @@ def generate_output(
         task_id=task_id,
         provider=provider.name,
         model=provider.model,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=prompt_version,
         latency_ms=latency_ms,
         status="succeeded",
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
+        estimated_cost=0,
     )
     session.add(call)
     session.flush()
@@ -100,7 +161,7 @@ def generate_output(
         status=VersionStatus.AWAITING_REVIEW.value,
         title_snapshot=payload.get("title") or payload.get("hook"),
         payload_json=payload,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=prompt_version,
         model=provider.model,
         provider_call_id=call.id,
     )
