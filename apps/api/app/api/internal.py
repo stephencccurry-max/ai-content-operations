@@ -5,7 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
-from app.domain.enums import RunStatus
+from app.domain.content.service import generate_output
+from app.domain.enums import Platform, RunStatus
 from app.domain.runs.service import (
     claim_run,
     complete_step,
@@ -115,3 +116,20 @@ def post_run_finish(
     run = finish_run(session, run_id, payload.status)
     session.commit()
     return {"id": str(run.id), "status": run.status}
+
+
+@router.post("/tasks/{task_id}/generate/{platform}", status_code=201)
+def post_generate(
+    task_id: uuid.UUID,
+    platform: Platform,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_internal_token),
+) -> dict:
+    version = generate_output(session, task_id, platform)
+    session.commit()
+    return {
+        "id": str(version.id),
+        "slot_id": str(version.slot_id),
+        "version": version.version,
+        "status": version.status,
+    }
