@@ -93,7 +93,7 @@ export function ContentPanel({ slotId }: { slotId: string }) {
             onClick={onApprove}
             className="rounded bg-green-700 px-3 py-1 text-sm text-white disabled:opacity-50"
           >
-            批准
+            批准当前版本
           </button>
         )}
         <button
@@ -105,7 +105,7 @@ export function ContentPanel({ slotId }: { slotId: string }) {
           导出 Markdown
         </button>
       </div>
-      {exportPath && <p className="text-sm text-green-700">已导出：{exportPath}</p>}
+      {exportPath && <p>{exportPath}</p>}
     </div>
   );
 }
