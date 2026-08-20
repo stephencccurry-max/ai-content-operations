@@ -86,7 +86,40 @@
       "name": "Start Step",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, 300]
+      "position": [960, 300],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1-start-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1d2e3f4-a5b6-7890-cdef-123456789abc",
+      "name": "IF Start Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1180, 300]
     },
     {
       "parameters": {
@@ -109,7 +142,40 @@
       "name": "Generate Content",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1200, 300]
+      "position": [1400, 300],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c2-generate-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d2e3f4b5-a6b7-8901-def0-234567890bcd",
+      "name": "IF Generate Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1620, 300]
     },
     {
       "parameters": {
@@ -139,7 +205,110 @@
       "name": "Complete Step",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1440, 300]
+      "position": [1840, 300],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c3-complete-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e3f4a5b6-b7c8-9012-ef01-345678901cde",
+      "name": "IF Complete Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2060, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.INTERNAL_API_BASE_URL }}/internal/v1/runs/{{ $('Loop Platforms').item.json.run_id }}/steps/generate_{{ $('Loop Platforms').item.json.platform }}/fail",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ attempt: $('Start Step').item.json.attempt, error_code: 'N8N_STEP_FAILED', error_message: $json.error?.message ?? $json.error?.description ?? 'Workflow step failed', retryable: false }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "f4a5b6c7-c8d9-0123-f012-456789012def",
+      "name": "Fail Step",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1840, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.INTERNAL_API_BASE_URL }}/internal/v1/runs/{{ $('Loop Platforms').item.json.run_id }}/finish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"status\":\"failed\"}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a5b6c7d8-d9e0-1234-0123-567890123efa",
+      "name": "Finish Run Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2060, 520]
+    },
+    {
+      "parameters": {
+        "errorMessage": "WF-01 pipeline failed; run marked failed"
+      },
+      "id": "b6c7d8e9-e0f1-2345-1234-678901234fab",
+      "name": "Stop After Failure",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [2280, 520]
     },
     {
       "parameters": {
@@ -228,6 +397,24 @@
       "main": [
         [
           {
+            "node": "IF Start Failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Start Failed?": {
+      "main": [
+        [
+          {
+            "node": "Finish Run Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Generate Content",
             "type": "main",
             "index": 0
@@ -237,6 +424,24 @@
     },
     "Generate Content": {
       "main": [
+        [
+          {
+            "node": "IF Generate Failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Generate Failed?": {
+      "main": [
+        [
+          {
+            "node": "Fail Step",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Complete Step",
@@ -250,7 +455,47 @@
       "main": [
         [
           {
+            "node": "IF Complete Failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Complete Failed?": {
+      "main": [
+        [
+          {
+            "node": "Fail Step",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Loop Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Step": {
+      "main": [
+        [
+          {
+            "node": "Finish Run Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish Run Failed": {
+      "main": [
+        [
+          {
+            "node": "Stop After Failure",
             "type": "main",
             "index": 0
           }
@@ -262,7 +507,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "wf01-content-pipeline-v1",
+  "versionId": "wf01-content-pipeline-v2",
   "meta": {
     "templateCredsSetupCompleted": true
   },

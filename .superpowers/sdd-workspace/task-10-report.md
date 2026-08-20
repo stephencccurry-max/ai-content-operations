@@ -156,3 +156,36 @@ $env:INTERNAL_API_TOKEN='test-internal-token'
 ```
 7a3ae35 fix(orchestration): Dockerfile layer cache and remove broken WF-01 error branch
 ```
+
+---
+
+## Follow-up Fix (Important Findings — Round 3)
+
+**Status:** ✅ Complete  
+**Date:** 2026-08-20  
+
+### Changes
+
+| File | Fix |
+|------|-----|
+| `workflows/wf01-content-pipeline.json` | Start Step / Generate / Complete 启用 `continueOnFail` + `alwaysOutputData`；主路径 IF 检查 `$json.error`；Generate/Complete 失败 → Fail Step（`run_id`、`step_key`、`attempt`）→ Finish Run Failed → Stop After Failure；Start 失败（无 attempt）直接 Finish Run Failed。Happy path 不变。 |
+| `workflows/README.md` | 记录 M1 使用主路径 Continue On Fail 而非 Error Trigger 的原因与失败收敛路径。 |
+
+### Test Evidence
+
+```powershell
+cd apps\api
+$env:INTERNAL_API_TOKEN='test-internal-token'
+.venv\Scripts\pytest.exe tests/test_pipeline_contract.py -v   # 3 passed
+.venv\Scripts\pytest.exe tests -v                             # 72 passed in 22.33s
+```
+
+### Resolved Concerns
+
+5. ~~Failure must converge run to failed~~ — In-main-path IF + `/fail` + `/finish` replaces broken Error Trigger; same execution retains Loop/Start Step context.
+
+### Commit
+
+```
+(pending)
+```

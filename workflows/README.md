@@ -58,18 +58,28 @@ curl.exe http://127.0.0.1:8000/api/v1/tasks/<task_id>
 | 2 | Claim Run | `POST /internal/v1/tasks/{task_id}/runs` |
 | 3 | Prepare Loop Items | 将 platforms 展开为循环项 |
 | 4 | Loop Platforms | Split In Batches 逐平台处理 |
-| 5 | Start Step | `POST .../steps/generate_{platform}/start` |
-| 6 | Generate Content | `POST .../tasks/{task_id}/generate/{platform}` |
-| 7 | Complete Step | `POST .../complete`，body 带 start 返回的 `attempt` |
-| 8 | Finish Run | 全部平台完成后 `POST .../finish`（`succeeded`） |
+| 5 | Start Step | `POST .../steps/generate_{platform}/start`（Continue On Fail） |
+| 6 | IF Start Failed? | 检查 `$json.error`；失败则跳至 Finish Run Failed |
+| 7 | Generate Content | `POST .../tasks/{task_id}/generate/{platform}`（Continue On Fail） |
+| 8 | IF Generate Failed? | 失败则 Fail Step → Finish Run Failed |
+| 9 | Complete Step | `POST .../complete`，body 带 start 返回的 `attempt`（Continue On Fail） |
+| 10 | IF Complete Failed? | 失败则 Fail Step；成功则回到 Loop Platforms |
+| 11 | Finish Run | 全部平台完成后 `POST .../finish`（`succeeded`） |
+
+失败收敛（与主路径同一次 execution）：Fail Step（`run_id`、`step_key`、`attempt` 来自 Loop / Start Step）→ Finish Run Failed → Stop After Failure。
 
 节点间仅传递 ID（`task_id`、`run_id`、`platform`、`attempt`），不传正文内容。
 
 ### 错误处理（M1）
 
-M1 主路径为 happy path；未接入 Error Trigger 分支。n8n 的 Error Trigger 在独立执行上下文中运行，无法可靠引用 Claim Run / Start Step 等主路径节点数据，原先 Fail Step 链已移除。
+M1 **不使用 Error Trigger**：Error Trigger 在独立 execution 中运行，无法可靠引用 Claim Run / Start Step / Loop Platforms 等主路径节点数据。
 
-后续可在 HTTP 节点启用 **Continue On Fail**，在主路径上根据 `$json.error` 调用 `/fail` 与 `/finish`（`failed`）；当前失败时工作流会中止，run 状态需通过 API 或运维手段清理。
+改为在 Start Step、Generate Content、Complete Step 上启用 **Continue On Fail** + **Always Output Data**，主路径 IF 节点检查 `$json.error`：
+
+- **Start 失败**：无 `attempt`，直接 `POST .../finish`（`failed`）后 Stop。
+- **Generate / Complete 失败**：`POST .../steps/generate_{platform}/fail`（带 Start Step 返回的 `attempt`）→ `POST .../finish`（`failed`）→ Stop。
+
+Happy path 不变：start → generate → complete → loop → finish succeeded。
 
 ### 契约测试
 
