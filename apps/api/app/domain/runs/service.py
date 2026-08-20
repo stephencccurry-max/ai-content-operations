@@ -6,17 +6,29 @@ from sqlalchemy.orm import Session
 
 from app.domain.enums import RunStatus, StepStatus
 from app.errors import AppError
-from app.infrastructure.db.models import WorkflowRun, WorkflowStepRun
+from app.infrastructure.db.models import ContentTask, WorkflowRun, WorkflowStepRun
+
+_TERMINAL_RUN_STATUSES = frozenset(
+    {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}
+)
 
 
 def claim_run(
     session: Session, task_id: uuid.UUID, n8n_execution_id: str | None
 ) -> WorkflowRun:
+    task = session.scalar(
+        select(ContentTask).where(ContentTask.id == task_id).with_for_update()
+    )
+    if task is None:
+        raise AppError("TASK_NOT_FOUND", "任务不存在", status_code=404)
+
     existing = session.scalar(
-        select(WorkflowRun).where(
+        select(WorkflowRun)
+        .where(
             WorkflowRun.task_id == task_id,
             WorkflowRun.status == RunStatus.RUNNING.value,
         )
+        .with_for_update()
     )
     if existing is not None:
         raise AppError(
@@ -36,6 +48,12 @@ def claim_run(
 def start_step(
     session: Session, run_id: uuid.UUID, step_key: str
 ) -> WorkflowStepRun:
+    run = session.scalar(
+        select(WorkflowRun).where(WorkflowRun.id == run_id).with_for_update()
+    )
+    if run is None:
+        raise AppError("RUN_NOT_FOUND", "运行不存在", status_code=404)
+
     last = session.scalar(
         select(func.max(WorkflowStepRun.attempt)).where(
             WorkflowStepRun.run_id == run_id, WorkflowStepRun.step_key == step_key
@@ -100,6 +118,13 @@ def fail_step(
 
 
 def finish_run(session: Session, run_id: uuid.UUID, status: RunStatus) -> WorkflowRun:
+    if status not in _TERMINAL_RUN_STATUSES:
+        raise AppError(
+            "INVALID_RUN_STATUS",
+            "运行只能结束为 succeeded、failed 或 cancelled",
+            status_code=400,
+        )
+
     run = session.get(WorkflowRun, run_id)
     if run is None:
         raise AppError("RUN_NOT_FOUND", "运行不存在", status_code=404)

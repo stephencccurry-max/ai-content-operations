@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 
 HEADERS = {"X-Internal-Token": "test-internal-token"}
@@ -80,3 +82,39 @@ def test_failed_step_records_error_and_marks_run_failed(client, task_id):
 
     assert detail["status"] == "failed"
     assert detail["steps"][0]["error_code"] == "PROVIDER_TIMEOUT"
+
+
+def test_claim_run_missing_task_returns_404(client):
+    response = client.post(
+        f"/internal/v1/tasks/{uuid.uuid4()}/runs",
+        json={},
+        headers=HEADERS,
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "TASK_NOT_FOUND"
+
+
+def test_start_step_missing_run_returns_404(client):
+    response = client.post(
+        f"/internal/v1/runs/{uuid.uuid4()}/steps/research/start",
+        headers=HEADERS,
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "RUN_NOT_FOUND"
+
+
+def test_finish_run_rejects_running_status(client, task_id):
+    run_id = client.post(
+        f"/internal/v1/tasks/{task_id}/runs", json={}, headers=HEADERS
+    ).json()["id"]
+
+    response = client.post(
+        f"/internal/v1/runs/{run_id}/finish",
+        json={"status": "running"},
+        headers=HEADERS,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_RUN_STATUS"
